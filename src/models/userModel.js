@@ -2,6 +2,7 @@ const mongoose = require('mongoose')
 const validator = require('validator')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const Task =  require('./taskModel')
 
 const userSchema = new mongoose.Schema({
     name:{
@@ -50,16 +51,35 @@ const userSchema = new mongoose.Schema({
 
 })
 
-//jwt authentication
+//setting up relation to the other collection
+userSchema.virtual('tasks', {
+    ref:'Task',
+    localField: '_id',
+    foreignField: 'owner'
+
+})
+
+//jwt authentication //methods on the indvidual instances of user
 userSchema.methods.generateAuthToken = async function () {
     const user = this
-    const token = jwt.sign({_id:user._id.toString()}, 'seceretKey')
+    const token = jwt.sign({_id:user._id.toString()}, process.env.JWT_SECRET)
     user.tokens = user.tokens.concat({token})
     await user.save()
     return token
 }
 
-//login user
+//filtering user data to hide private things (password, token,etc)
+userSchema.methods.toJSON = function (){
+    const user = this
+    const userObject = user.toObject()
+
+    delete userObject.password
+    delete userObject.tokens
+    
+    return userObject
+}
+
+//login user //method on the 'User' whole user model
 userSchema.statics.findByCredentials = async (email,password) =>{
     const user = await User.findOne({email})
     if(!user){
@@ -81,6 +101,13 @@ userSchema.pre('save', async function (next) {
     if(user.isModified('password')){
         user.password = await bcrypt.hash(user.password, 8)
     }
+    next()
+})
+
+// Delete user tasks when user is removed
+userSchema.pre('remove', async function(next){
+    const user = this
+    await Task.deleteMany({owner: user._id})
     next()
 })
 
