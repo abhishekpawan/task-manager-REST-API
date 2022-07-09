@@ -49,6 +49,8 @@ const userSchema = new mongoose.Schema({
         }
     }]
 
+},{
+    timestamps:true
 })
 
 //setting up relation to the other collection
